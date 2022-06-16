@@ -1,6 +1,6 @@
 [package]
 name = "get_params_derive"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 repository = "https://github.com/mztikk/get_params_derive"
 authors = ["Nils Feierabend <mztikk@outlook.de>"]
@@ -13,6 +13,7 @@ description = "derive macro for get_params as JsValue"
 proc-macro = true
 
 [dependencies]
+convert_case = "0.5.0"
 proc-macro2 = "1.0.39"
 quote = "1.0.18"
 serde = { version = "1.0.137", features = ["derive"] }

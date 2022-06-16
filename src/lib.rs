@@ -1,5 +1,6 @@
 extern crate proc_macro;
 
+use convert_case::{Case, Casing};
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, quote_spanned, ToTokens};
@@ -89,6 +90,59 @@ fn impl_get_params(ast: &syn::DeriveInput) -> TokenStream {
         impl #impl_generics #name #ty_generics #where_clause {
             pub fn get_params(&self) -> Vec<serde_json::Value> {
             match self {
+                #variant_match_arms
+            }
+        }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
+#[proc_macro_derive(IntoJsonValue)]
+pub fn into_json_value_derive(input: TokenStream) -> TokenStream {
+    let ast = syn::parse(input).unwrap();
+    impl_into_json_value_derive(&ast)
+}
+
+fn impl_into_json_value_derive(ast: &syn::DeriveInput) -> TokenStream {
+    let name = &ast.ident;
+    let data = &ast.data;
+
+    let mut variant_match_arms;
+
+    match data {
+        Data::Enum(data_enum) => {
+            variant_match_arms = TokenStream2::new();
+
+            for variant in &data_enum.variants {
+                let variant_name = &variant.ident;
+
+                // Variant can have unnamed fields like `Variant(i32, i64)`
+                // Variant can have named fields like `Variant {x: i32, y: i32}`
+                // Variant can be named Unit like `Variant`
+                let fields_in_variant = match &variant.fields {
+                    Fields::Unnamed(_) => quote_spanned! {variant.span()=> (..) },
+                    Fields::Unit => quote_spanned! { variant.span()=> },
+                    Fields::Named(_) => quote_spanned! {variant.span()=> {..} },
+                };
+
+                let variant_string = variant_name.to_string().to_case(Case::Snake).to_string();
+
+                variant_match_arms.extend(quote_spanned! {variant.span()=>
+                            #name::#variant_name #fields_in_variant => #variant_string.to_string().into(),
+                });
+            }
+        }
+        _ => return derive_error!("get_params is only implemented for enums"),
+    };
+
+    let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
+
+    let expanded = quote! {
+        impl From<#impl_generics #name #ty_generics> for serde_json::Value #where_clause {
+            fn from(val: #name) -> Self {
+            match val {
                 #variant_match_arms
             }
         }
