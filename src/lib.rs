@@ -142,16 +142,16 @@ fn impl_into_json_value_derive(ast: &syn::DeriveInput) -> TokenStream {
     let expanded = quote! {
         impl From<#impl_generics #name #ty_generics> for serde_json::Value #where_clause {
             fn from(val: #name) -> Self {
-            match val {
-                #variant_match_arms
-            }
+                match val {
+                    #variant_match_arms
+                }
             }
         }
         impl From<#impl_generics &#name #ty_generics> for serde_json::Value #where_clause {
-            fn from(val: #name) -> Self {
-            match *val {
-                #variant_match_arms
-            }
+            fn from(val: &#name) -> Self {
+                match *val {
+                    #variant_match_arms
+                }
             }
         }
     };
