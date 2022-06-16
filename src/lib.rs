@@ -59,15 +59,32 @@ fn impl_get_params(ast: &syn::DeriveInput) -> TokenStream {
                                         == "bool" =>
                                 {
                                     implementations.extend(quote_spanned! {variant.span()=>
-                                    match #field_name {true => "on", false => "off"}.into(),})
-                                }
+                                    vec.push(match #field_name {true => "on", false => "off"}.into());})
+                                },
+                                // check if type is a vec
+                                Type::Path(type_path)
+                                    if type_path.clone().into_token_stream().to_string().starts_with("Vec<") =>
+                                {
+                                    implementations.extend(quote_spanned! {variant.span()=>
+                                    vec.extend(#field_name.iter().map(serde_json::Value::from));})
+                                },
+                                Type::Path(type_path)
+                                    if type_path.clone().into_token_stream().to_string().starts_with("Vec <") =>
+                                {
+                                    implementations.extend(quote_spanned! {variant.span()=>
+                                    vec.extend(#field_name.iter().map(serde_json::Value::from));})
+                                },
                                 _ => implementations.extend(quote_spanned! {variant.span()=>
-                                #field_name.to_owned().into(),}),
+                                vec.push(#field_name.to_owned().into());}),
                             }
                         }
 
                         variant_match_arms.extend(quote_spanned! {variant.span()=>
-                                    #name::#variant_name (#field_names) => vec![#implementations],
+                                    #name::#variant_name (#field_names) => {
+                                        let mut vec = Vec::new();
+                                        #implementations
+                                        vec
+                                    },
                         });
                     }
                     Fields::Unit => {
