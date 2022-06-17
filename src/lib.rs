@@ -122,7 +122,7 @@ fn impl_get_params(ast: &syn::DeriveInput) -> TokenStream {
 
     let expanded = quote! {
         impl #impl_generics #name #ty_generics #where_clause {
-            pub fn get_params(&self) -> Vec<serde_json::Value> {
+            pub(crate) fn get_params(&self) -> Vec<serde_json::Value> {
             match self {
                 #variant_match_arms
             }
