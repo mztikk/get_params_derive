@@ -54,6 +54,10 @@ fn impl_get_params(ast: &syn::DeriveInput) -> TokenStream {
                                 #field_name,
                             });
 
+                            // if let Type::Path(type_path) = &field.ty {
+                            //     println!("{}", type_path.into_token_stream());
+                            // }
+
                             match &field.ty {
                                 Type::Path(type_path)
                                     if type_path.clone().into_token_stream().to_string()
@@ -83,6 +87,34 @@ fn impl_get_params(ast: &syn::DeriveInput) -> TokenStream {
                                     vec_extends.extend(quote_spanned! {variant.span()=>
                                     vec.extend(#field_name.iter().map(serde_json::Value::from));})
                                 }
+                                // check if type is an option
+                                Type::Path(type_path)
+                                    if type_path
+                                        .clone()
+                                        .into_token_stream()
+                                        .to_string()
+                                        .starts_with("Option <") =>
+                                {
+                                    vec_extends.extend(quote_spanned! {variant.span()=>
+                                        if let Some(val) = #field_name {
+                                            vec.push(val.to_owned().into());
+                                        }
+                                    });
+                                }
+                                Type::Path(type_path)
+                                    if type_path
+                                        .clone()
+                                        .into_token_stream()
+                                        .to_string()
+                                        .starts_with("Option<") =>
+                                {
+                                    vec_extends.extend(quote_spanned! {variant.span()=>
+                                        if let Some(val) = #field_name {
+                                            vec.push(val.to_owned().into());
+                                        }
+                                    });
+                                }
+
                                 _ => vec_inits.extend(quote_spanned! {variant.span()=>
                                 #field_name.to_owned().into(),}),
                             }
