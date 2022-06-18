@@ -224,3 +224,98 @@ fn impl_into_json_value_derive(ast: &syn::DeriveInput) -> TokenStream {
 
     TokenStream::from(expanded)
 }
+
+#[proc_macro_derive(FromRawCommand)]
+pub fn from_raw_command_derive(input: TokenStream) -> TokenStream {
+    let ast = syn::parse(input).unwrap();
+    impl_from_raw_command_derive(&ast)
+}
+
+fn impl_from_raw_command_derive(ast: &syn::DeriveInput) -> TokenStream {
+    let name = &ast.ident;
+    let data = &ast.data;
+
+    let mut method_construction;
+
+    match data {
+        Data::Enum(data_enum) => {
+            method_construction = TokenStream2::new();
+
+            for variant in &data_enum.variants {
+                let variant_name = &variant.ident;
+                let variant_snake_case = variant_name.to_string().to_case(Case::Snake).to_string();
+
+                let mut param_construction = TokenStream2::new();
+
+                match &variant.fields {
+                    Fields::Unnamed(fields) => {
+                        for (i, field) in fields.unnamed.iter().enumerate() {
+                            match &field.ty {
+                                Type::Path(type_path)
+                                    if type_path.clone().into_token_stream().to_string()
+                                        == "bool" =>
+                                {
+                                    param_construction.extend(quote_spanned! {variant.span()=>
+                                        if raw.params.len() > #i { match raw.params[#i].as_str().unwrap() { "on" => true, "off" => false, _ => false } } else { panic!("Value for non optional field '{} - {}' in '{}' is missing", #i+1, stringify!(#field), stringify!(#variant_name)) },
+                                    });
+                                }
+                                Type::Path(type_path)
+                                    if type_path
+                                        .clone()
+                                        .into_token_stream()
+                                        .to_string()
+                                        .starts_with("Option <") =>
+                                {
+                                    param_construction.extend(quote_spanned! {variant.span()=>
+                                                if raw.params.len() > #i { Some(serde_json::from_value(raw.params[#i].to_owned()).unwrap()) } else { None },
+                                            });
+                                }
+                                _ => {
+                                    param_construction.extend(quote_spanned! {variant.span()=>
+                                        if raw.params.len() > #i { serde_json::from_value(raw.params[#i].to_owned()).unwrap() } else { panic!("Value for non optional field '{} - {}' in '{}' is missing", #i+1, stringify!(#field), stringify!(#variant_name)) },
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    Fields::Unit => {}
+                    _ => todo!(),
+                };
+
+                if param_construction.is_empty() {
+                    method_construction.extend(quote_spanned! {variant.span()=>
+                        #variant_snake_case => #name::#variant_name,
+                    });
+                } else {
+                    method_construction.extend(quote_spanned! {variant.span()=>
+                        #variant_snake_case => #name::#variant_name(#param_construction),
+                    });
+                }
+            }
+        }
+        _ => return derive_error!("FromRawCommand is only implemented for enums"),
+    };
+
+    let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
+
+    let expanded = quote! {
+        impl From<RawCommand> for #impl_generics #name #ty_generics #where_clause {
+            fn from(raw: RawCommand) -> Self {
+                match raw.method.as_str() {
+                    #method_construction
+                    _ => panic!("Unknown method"),
+                }
+            }
+        }
+        impl From<&RawCommand> for #impl_generics #name #ty_generics #where_clause {
+            fn from(raw: &RawCommand) -> Self {
+                match raw.method.as_str() {
+                    #method_construction
+                    _ => panic!("Unknown method"),
+                }
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}

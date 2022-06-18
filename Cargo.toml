@@ -1,6 +1,6 @@
 [package]
 name = "get_params_derive"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 repository = "https://github.com/mztikk/get_params_derive"
 authors = ["Nils Feierabend <mztikk@outlook.de>"]
